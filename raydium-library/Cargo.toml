@@ -7,21 +7,20 @@ edition = "2018"
 serum_dex = { git = "https://github.com/raydium-io/openbook-dex", default-features = false, features = [
     "client",
 ] }
-raydium_amm = { git = "https://github.com/raydium-io/raydium-amm", default-features = false, features = [
+raydium-amm = { path = "../raydium-amm", default-features = false, features = [
     "client",
 ] }
 spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
 spl-associated-token-account = { version = "2.2.0", features = [
     "no-entrypoint",
 ] }
-mpl-token-metadata = { version = "^1.11.0", features = ["no-entrypoint"] }
 spl-token-2022 = { version = "0.9.0", features = ["no-entrypoint"] }
 spl-memo = "4.0.0"
-solana-program = "<1.18"
-solana-client = "<1.18"
-solana-sdk = "<1.18"
-solana-account-decoder = "<1.18"
-solana-transaction-status = "<1.18"
+solana-program = "1.18"
+solana-client = "1.18"
+solana-sdk = "1.18"
+solana-account-decoder = "1.18"
+solana-transaction-status = "1.18"
 anyhow = "1.0.53"
 rand = "0.7.3"
 bytemuck = { version = "1.7.3" }

@@ -1,0 +1,33 @@
+[package]
+name = "snipe-bot"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bincode = "1.3.3"
+bs58 = "0.5.1"
+clap = { version = "4", features = ["derive", "env"] }
+env_logger = "0.10"
+futures-util = "0.3.28"
+histogram = "0.6.9"
+log = "0.4.17"
+rand = "0.8.5"
+serde = { version = "1.0.203", features = ["derive"] }
+solana-account-decoder = "1.18"
+solana-client = "1.18"
+solana-metrics = "1.18"
+solana-rpc-client-api = "1.18"
+solana-sdk = "1.18"
+solana-transaction-status = "1.18"
+thiserror = "1.0.40"
+tokio = "1"
+tonic = { version = "0.10", features = ["tls", "tls-roots", "tls-webpki-roots"] }
+raydium-library = { path = "../raydium-library" }
+spl-token = { version = "4.0.0", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "2.2.0", features = [
+    "no-entrypoint",
+] }
+spl-token-2022 = { version = "0.9.0", features = ["no-entrypoint"] }
+anyhow = "1.0.86"

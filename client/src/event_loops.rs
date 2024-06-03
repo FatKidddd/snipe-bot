@@ -1,7 +1,5 @@
 use crate::raydium::LiquidityStateLayoutV4;
 use futures_util::StreamExt;
-use jito_protos::{bundle::BundleResult, searcher::SubscribeBundleResultsRequest};
-use jito_searcher_client::get_searcher_client;
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::{
     nonblocking::pubsub_client::PubsubClient,
@@ -183,73 +181,6 @@ pub async fn program_account_subscribe_loop(
                     ("errors", connect_errors, i64),
                     ("error_str", e.to_string(), String)
                 );
-            }
-        }
-    }
-}
-
-pub async fn bundle_results_loop(
-    block_engine_url: String,
-    auth_keypair: Arc<Keypair>,
-    bundle_results_sender: Sender<BundleResult>,
-) {
-    let mut connection_errors: usize = 0;
-    let mut response_errors: usize = 0;
-
-    loop {
-        sleep(Duration::from_millis(1000)).await;
-        match get_searcher_client(&block_engine_url, &auth_keypair).await {
-            Ok(mut c) => match c
-                .subscribe_bundle_results(SubscribeBundleResultsRequest {})
-                .await
-            {
-                Ok(resp) => {
-                    consume_bundle_results_stream(resp.into_inner(), &bundle_results_sender).await;
-                }
-                Err(e) => {
-                    response_errors += 1;
-                    datapoint_error!(
-                        "searcher_bundle_results_error",
-                        ("errors", response_errors, i64),
-                        ("msg", e.to_string(), String)
-                    );
-                }
-            },
-            Err(e) => {
-                connection_errors += 1;
-                datapoint_error!(
-                    "searcher_bundle_results_error",
-                    ("errors", connection_errors, i64),
-                    ("msg", e.to_string(), String)
-                );
-            }
-        }
-    }
-}
-
-pub async fn consume_bundle_results_stream(
-    mut stream: Streaming<BundleResult>,
-    bundle_results_sender: &Sender<BundleResult>,
-) {
-    while let Some(maybe_msg) = stream.next().await {
-        match maybe_msg {
-            Ok(msg) => {
-                if let Err(e) = bundle_results_sender.send(msg).await {
-                    datapoint_error!(
-                        "searcher_bundle_results_error",
-                        ("errors", 1, i64),
-                        ("msg", e.to_string(), String)
-                    );
-                    return;
-                }
-            }
-            Err(e) => {
-                datapoint_error!(
-                    "searcher_bundle_results_error",
-                    ("errors", 1, i64),
-                    ("msg", e.to_string(), String)
-                );
-                return;
             }
         }
     }

@@ -1,21 +1,8 @@
 mod event_loops;
 mod raydium;
 
-use crate::event_loops::{
-    bundle_results_loop, program_account_subscribe_loop, slot_subscribe_loop,
-};
+use crate::event_loops::{program_account_subscribe_loop, slot_subscribe_loop};
 use env_logger::TimestampPrecision;
-use jito_protos::{
-    bundle::BundleResult,
-    searcher::{
-        searcher_service_client::SearcherServiceClient, ConnectedLeadersRequest,
-        NextScheduledLeaderRequest, PendingTxNotification, SendBundleResponse,
-    },
-};
-use jito_searcher_client::{
-    get_searcher_client, send_bundle_no_wait, token_authenticator::ClientInterceptor,
-    BlockEngineConnectionError,
-};
 use log::*;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use solana_client::{
@@ -33,7 +20,6 @@ use solana_sdk::{
     system_instruction::transfer,
     transaction::{Transaction, VersionedTransaction},
 };
-use spl_memo::build_memo;
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     path::PathBuf,
@@ -67,63 +53,6 @@ enum BackrunError {
 }
 
 type Result<T> = result::Result<T, BackrunError>;
-
-// fn build_bundles(
-//     keypair: &Keypair,
-//     blockhash: &Hash,
-//     tip_accounts: &[Pubkey],
-//     rng: &mut ThreadRng,
-//     message: &str,
-// ) -> Vec<VersionedTransaction> {
-//         .transactions
-//         .into_iter()
-//         .filter_map(|packet| {
-//             let mempool_tx = versioned_tx_from_packet(&packet)?;
-//
-//             let tip_tx = VersionedTransaction::from(Transaction::new_signed_with_payer(
-//                 &[
-//                     build_memo(
-//                         format!("{}: {:?}", message, mempool_tx.signatures[0].to_string())
-//                             .as_bytes(),
-//                         &[],
-//                     ),
-//                     transfer(
-//                         &keypair.pubkey(),
-//                         &tip_accounts[rng.gen_range(0..tip_accounts.len())],
-//                         10_000,
-//                     ),
-//                 ],
-//                 Some(&keypair.pubkey()),
-//                 &[keypair],
-//                 *blockhash,
-//             ));
-//             Some(vec![tip_tx])
-//         })
-//         .collect()
-// }
-
-// async fn send_bundles(
-//     searcher_client: &mut SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
-//     bundles: &[Vec<VersionedTransaction>],
-// ) -> Result<Vec<result::Result<Response<SendBundleResponse>, Status>>> {
-//     let mut futs = Vec::with_capacity(bundles.len());
-//     for b in bundles {
-//         let mut searcher_client = searcher_client.clone();
-//         let txs = b
-//             .mempool_txs
-//             .clone()
-//             .into_iter()
-//             .chain(b.backrun_txs.clone().into_iter())
-//             .collect::<Vec<VersionedTransaction>>();
-//         let task =
-//             tokio::spawn(async move { send_bundle_no_wait(&txs, &mut searcher_client).await });
-//         futs.push(task);
-//     }
-//
-//     let responses = futures_util::future::join_all(futs).await;
-//     let send_bundle_responses = responses.into_iter().map(|r| r.unwrap()).collect();
-//     Ok(send_bundle_responses)
-// }
 
 async fn maintenance_tick(
     searcher_client: &mut SearcherServiceClient<InterceptedService<Channel, ClientInterceptor>>,
