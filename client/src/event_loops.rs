@@ -1,4 +1,3 @@
-use crate::raydium::LiquidityStateLayoutV4;
 use futures_util::StreamExt;
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::{
@@ -9,7 +8,6 @@ use solana_client::{
 };
 use solana_metrics::{datapoint_error, datapoint_info};
 use solana_sdk::{
-    account::Account,
     commitment_config::{CommitmentConfig, CommitmentLevel},
     pubkey::Pubkey,
 };
@@ -19,7 +17,7 @@ use tokio::{sync::mpsc::Sender, time::sleep};
 pub async fn program_account_subscribe_loop(
     pubsub_addr: String,
     quote_token: String,
-    program_account_receiver: Sender<Response<RpcKeyedAccount>>,
+    program_account_sender: Sender<Response<RpcKeyedAccount>>,
 ) {
     let mut connect_errors: u64 = 0;
     let mut program_account_subscribe_errors: u64 = 0;
@@ -79,20 +77,11 @@ pub async fn program_account_subscribe_loop(
                     while let Some(program_account_update) =
                         program_account_update_subscription.next().await
                     {
-                        let account: Account = program_account_update
-                            .value
-                            .account
-                            .decode()
-                            .expect("failed to decode");
-                        let bytes = account.data;
-                        let pool_state = LiquidityStateLayoutV4::from_bytes(&bytes);
-                        println!("pool_state: {:?}", pool_state);
-
                         datapoint_info!(
                             "program_account_subscribe_slot",
                             ("slot", program_account_update.context.slot, i64)
                         );
-                        if program_account_receiver
+                        if program_account_sender
                             .send(program_account_update)
                             .await
                             .is_err()

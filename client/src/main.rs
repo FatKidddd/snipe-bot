@@ -4,33 +4,25 @@ mod raydium;
 use crate::event_loops::program_account_subscribe_loop;
 use env_logger::TimestampPrecision;
 use log::*;
+use raydium::LiquidityStateLayoutV4;
 use solana_client::{
     client_error::ClientError,
     nonblocking::{pubsub_client::PubsubClientError, rpc_client::RpcClient},
-    rpc_response::{Response as RpcResponse, RpcKeyedAccount},
+    rpc_response::{Response, RpcKeyedAccount},
 };
 use solana_sdk::{
+    account::Account,
     commitment_config::{CommitmentConfig, CommitmentLevel},
     hash::Hash,
-    pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signer},
     transaction::{Transaction, VersionedTransaction},
 };
 use std::{result, sync::Arc, time::Duration};
 use thiserror::Error;
-use tokio::{
-    runtime::Builder,
-    sync::mpsc::{channel, Receiver},
-    time::interval,
-};
-use tonic::Status;
+use tokio::{sync::mpsc::channel, time::interval};
 
 #[derive(Debug, Error)]
 enum BackrunError {
-    #[error("TonicError {0}")]
-    TonicError(#[from] tonic::transport::Error),
-    #[error("GrpcError {0}")]
-    GrpcError(#[from] Status),
     #[error("RpcError {0}")]
     RpcError(#[from] ClientError),
     #[error("PubSubError {0}")]
@@ -50,29 +42,8 @@ async fn get_blockhash(rpc_client: &RpcClient) -> Result<Hash> {
         .0)
 }
 
-async fn solve(
-    payer_keypair: &Keypair,
-    rpc_url: String,
-    mut program_account_receiver: Receiver<RpcResponse<RpcKeyedAccount>>,
-) -> Result<()> {
-    let rpc_client = RpcClient::new(rpc_url);
-
-    let mut tick = interval(Duration::from_secs(5));
-    let mut blockhash = get_blockhash(&rpc_client).await?;
-    loop {
-        tokio::select! {
-            _ = tick.tick() => {
-                blockhash = get_blockhash(&rpc_client).await?;
-            }
-            maybe_program_account = program_account_receiver.recv() => {
-                let program_account = maybe_program_account.ok_or(BackrunError::Shutdown)?;
-                info!("received program_account: [pubkey={:?}]", program_account.value.pubkey);
-            }
-        }
-    }
-}
-
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     env_logger::builder()
         .format_timestamp(Some(TimestampPrecision::Micros))
         .init();
@@ -87,19 +58,35 @@ fn main() -> Result<()> {
     }
     .to_string();
 
-    let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
-    runtime.block_on(async move {
-        let (program_account_sender, program_account_receiver) = channel(100);
+    let (program_account_sender, mut program_account_receiver) = channel(100);
+    let rpc_client = RpcClient::new(rpc_url);
+    let mut tick = interval(Duration::from_secs(5));
+    let mut blockhash = get_blockhash(&rpc_client).await?;
 
-        tokio::spawn(program_account_subscribe_loop(
-            rpc_ws_url.clone(),
-            quote_token.clone(),
-            program_account_sender,
-        ));
+    tokio::spawn(program_account_subscribe_loop(
+        rpc_ws_url.clone(),
+        quote_token.clone(),
+        program_account_sender,
+    ));
 
-        let result = solve(&payer_keypair, rpc_url, program_account_receiver).await;
-        error!("searcher loop exited result: {result:?}");
+    loop {
+        tokio::select! {
+            _ = tick.tick() => {
+                blockhash = get_blockhash(&rpc_client).await?;
+            }
+            maybe_program_account = program_account_receiver.recv() => {
+                let program_account: Response<RpcKeyedAccount> = maybe_program_account.ok_or(BackrunError::Shutdown)?;
+                info!("received program_account: [pubkey={:?}]", program_account.value.pubkey);
 
-        Ok(())
-    })
+                let account: Account = program_account
+                    .value
+                    .account
+                    .decode()
+                    .expect("failed to decode");
+                let bytes = account.data;
+                let pool_state = LiquidityStateLayoutV4::from_bytes(&bytes);
+                info!("{:?}", pool_state);
+            }
+        }
+    }
 }
