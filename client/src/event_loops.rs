@@ -5,71 +5,16 @@ use solana_client::{
     nonblocking::pubsub_client::PubsubClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
-    rpc_response::{Response, RpcKeyedAccount, SlotUpdate},
+    rpc_response::{Response, RpcKeyedAccount},
 };
 use solana_metrics::{datapoint_error, datapoint_info};
 use solana_sdk::{
     account::Account,
-    clock::Slot,
     commitment_config::{CommitmentConfig, CommitmentLevel},
     pubkey::Pubkey,
-    signature::Keypair,
 };
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{str::FromStr, time::Duration};
 use tokio::{sync::mpsc::Sender, time::sleep};
-use tonic::Streaming;
-
-// slot update subscription loop that attempts to maintain a connection to an RPC server
-pub async fn slot_subscribe_loop(pubsub_addr: String, slot_sender: Sender<Slot>) {
-    let mut connect_errors: u64 = 0;
-    let mut slot_subscribe_errors: u64 = 0;
-    let mut slot_subscribe_disconnect_errors: u64 = 0;
-
-    loop {
-        sleep(Duration::from_secs(1)).await;
-
-        match PubsubClient::new(&pubsub_addr).await {
-            Ok(pubsub_client) => match pubsub_client.slot_updates_subscribe().await {
-                Ok((mut slot_update_subscription, _unsubscribe_fn)) => {
-                    while let Some(slot_update) = slot_update_subscription.next().await {
-                        if let SlotUpdate::FirstShredReceived { slot, timestamp: _ } = slot_update {
-                            datapoint_info!("slot_subscribe_slot", ("slot", slot, i64));
-                            if slot_sender.send(slot).await.is_err() {
-                                datapoint_error!("slot_subscribe_send_error", ("errors", 1, i64));
-                                return;
-                            }
-                        }
-                    }
-                    slot_subscribe_disconnect_errors += 1;
-                    datapoint_error!(
-                        "slot_subscribe_disconnect_error",
-                        ("errors", slot_subscribe_disconnect_errors, i64)
-                    );
-                }
-                Err(e) => {
-                    slot_subscribe_errors += 1;
-                    datapoint_error!(
-                        "slot_subscribe_error",
-                        ("errors", slot_subscribe_errors, i64),
-                        ("error_str", e.to_string(), String),
-                    );
-                }
-            },
-            Err(e) => {
-                connect_errors += 1;
-                datapoint_error!(
-                    "slot_subscribe_pubsub_connect_error",
-                    ("errors", connect_errors, i64),
-                    ("error_str", e.to_string(), String)
-                );
-            }
-        }
-    }
-}
-
-// NOTE: block subscription only for private rpc
-// you must have --rpc-pubsub-enable-block-subscription and relevant flags started
-// on your RPC servers for this to work.
 
 pub async fn program_account_subscribe_loop(
     pubsub_addr: String,
