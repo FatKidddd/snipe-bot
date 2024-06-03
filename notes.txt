@@ -1,0 +1,100 @@
+Flow
+
+Detecting Pool
+- Subscribe to rpc for
+  1. Raydium pools
+    - Not sure if this catches new pools launching
+    - Theres no sdk for this in rust unlike in typescript, but I think can implement myself though it will take a while
+    - program account subscription with liquidity state layout filters 
+  2. Open book markets 
+  3. Wallet changes
+- Stream these
+
+Sending Tx
+1. Maybe need criteria that jito leader is < some seconds of pool launch 
+2. sendTransaction vs sendBundle
+  1. I think sendBundle only when it's a jito leader
+  2. If not sendTransaction is for everything even though it's still forward to jito's block engine
+    - The reason why need to know if it's jito leader is to send bundle because want to tip, if can tip then will have higher chance of inclusion?
+    - If send transaction make some slippage so that people can sandwich me so that my transaction will have higher chance of being included?
+
+Strategy
+1. Filtering Pool Criteria
+- Metadata like ...
+2. Entry and Exit
+- This is highly dependent on latency of rpc requests, need to test this out first
+- I think best is just to spam buy and spam sell until one of each lands in order
+  - then see how slow it will be
+  - then only think about exit criteria lol
+
+
+Don't feel like working on this because likely dedicated rpc is still required since it is the bottle neck
+Can try load balancing by having an rpc pool
+Probably still won't work tho because of high latency
+How to not send duplicate transactions?
+
+For arbitrage sandwiching they stack as many sandwiches into one bundle / transaction so that tip will be highest
+Maybe can do that for sniping to get higher priority?
+
+
+from X
+its super easy to land a transaction on solana you have so many options:
+1.  send a normal tx through an unstaked RPC and pray it doesn't get dropped
+2. rent a staked connection through one of the 2 swqos markets
+3. OR obtain 20k SOL and send a tx through a staked RPC
+4 realize that your quic packets still get randomly  dropped when you're staked
+5. add a priority fee (and completely guess how much it should be) and pray the scheduler prioritizes it
+6. use the jito block engine
+7. use a helius plan and add 10k lamport priority fee and get routed to staked connections
+
+
+Note:
+Validator Location
+Since the Jito pipeline is very latency sensitive, it is important to choose a block engine that is located close to you. For Jito bundles to be added to blocks during leader slots, the Block Engine must be able to forward them within the appropriate slot. Optimal round-trip latency between the Block Engine and a validator is <50ms.
+If you aren't in a location with low latency access, you can still run Jito-Solana. We are seeing validators with <100ms latency (round trip) operate well given current network and bundle throughput. Note, this latency only impacts Jito bundle inclusion. Votes and non-leader slots are unaffected. Even during leader slots, blocks will still be produced as normal given the relayer's architecture.
+
+This means using bundles might not be useful lol
+Can try with vps first
+
+
+maintain a rpc connection pool
+
+need to get data from openbook market first for the token account, this will help check some metadata for the pool
+
+
+need to verify that the pools I'm getting are actually new
+
+seems like jito might be stupid cos it basically would only work like 1% of the time
+
+how to get price reliably? do i even need to get price?
+from how raydium sdk gets it, they are simulating transactions using rpc based on the events queue to get the price
+account subscribe? --> this is likely slower than simulating the transactions? actually why can't i just simulate the transactions locally???
+
+conditions for buying:
+what is a smart way to document and optimise all attempts?
+
+pool filters: is there even a point? 
+I think there might be a point because more non-botters will buy and that gives me advantage of using bot. 
+if it's just vs other bots then i prob won't perform well
+can try without first to see how well i perform vs other bots
+...
+
+after pool filter create associated token account first 
+oh, just add this as an instruction before
+what is the diff between create and createidempotent instructions
+from what i see people are just spamming the pool
+
+buying filters:
+upper bound for how fast I need to buy, max is 30 seconds - how long I'd expect transaction to go through
+how much to buy should be a % of market cap
+how much to tip? should be some % of how much I'm buying
+
+selling filters:
+
+
+transactions custom retry logic?
+
+take total supply - liquidity amounts to get % owner owns
+
+I think tpu might be useful, see https://solana.com/docs/advanced/retry
+
